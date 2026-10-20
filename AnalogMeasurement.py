@@ -4,7 +4,7 @@ from saleae.range_measurements import AnalogMeasurer
 
 
 class RiseFallTime(AnalogMeasurer):
-    supported_measurements = ["v_30p", "v_70p", "t_rise", "t_fall"]
+    supported_measurements = ["v_10p", "v_90p", "t_rise", "t_fall"]
 
     # Initialize your measurement extension here
     # Each measurement object will only be used once, so feel free to do all per-measurement initialization here
@@ -13,10 +13,10 @@ class RiseFallTime(AnalogMeasurer):
         self.samples = []
         self.sampling_period = None
 
-        if "v_30p" in self.supported_measurements:
-            self.measure_v_30p = True
-        if "v_70p" in self.supported_measurements:
-            self.measure_v_70p = True
+        if "v_10p" in self.supported_measurements:
+            self.measure_v_10p = True
+        if "v_90p" in self.supported_measurements:
+            self.measure_v_90p = True
         if "t_rise" in self.supported_measurements:
             self.measure_t_rise = True
         if "t_fall" in self.supported_measurements:
@@ -41,37 +41,37 @@ class RiseFallTime(AnalogMeasurer):
 
         max = np.max(data)
 
-        v_30p = max * 0.3
-        v_70p = max * 0.7
+        v_10p = max * 0.1
+        v_90p = max * 0.9
 
         t_rise = []
         t_fall = []
 
         if self.measure_t_rise or self.measure_t_fall:
-            i_30p = None
-            i_70p = None
+            i_10p = None
+            i_90p = None
 
             v = data[0]
             for i, n in enumerate(data[1:]):
-                if (v >= v_30p and n < v_30p) or (v <= v_30p and n > v_30p):
-                    i_30p = i
-                    if i_70p is not None:
-                        t_fall.append(i_30p - i_70p)
-                        i_30p = i_70p = None
-                if (v >= v_70p and n < v_70p) or (v <= v_70p and n > v_70p):
-                    i_70p = i
-                    if i_30p is not None:
-                        t_rise.append(i_70p - i_30p)
-                        i_30p = i_70p = None
+                if (v >= v_10p and n < v_10p) or (v <= v_10p and n > v_10p):
+                    i_10p = i
+                    if i_90p is not None:
+                        t_fall.append(i_10p - i_90p)
+                        i_10p = i_90p = None
+                if (v >= v_90p and n < v_90p) or (v <= v_90p and n > v_90p):
+                    i_90p = i
+                    if i_10p is not None:
+                        t_rise.append(i_90p - i_10p)
+                        i_10p = i_90p = None
                 v = n        
 
         values = {}
 
-        if self.measure_v_30p:
-            values["v_30p"] = v_30p
+        if self.measure_v_10p:
+            values["v_10p"] = v_10p
 
-        if self.measure_v_70p:
-            values["v_70p"] = v_70p
+        if self.measure_v_90p:
+            values["v_90p"] = v_90p
 
         if self.measure_t_rise and len(t_rise):
             values["t_rise"] = np.average(t_rise) * self.sampling_period
