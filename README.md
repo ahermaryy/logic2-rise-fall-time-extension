@@ -1,6 +1,6 @@
 # Rise/Fall Time
   
-An extension that adds average 30%-70% rise/fall time metrics to analog measurements.
+An extension that adds average 10%-90% rise/fall time metrics to analog measurements.
 
 ![Rise and Fall](files/rise_fall.png)
 
