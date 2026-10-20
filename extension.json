@@ -1,22 +1,22 @@
 {
   "name": "Rise/Fall Time",
   "apiVersion": "1.0.0",
-  "author": "Fabiano Kovalski",
+  "author": "A Hermary",
   "version": "1.0.0",
-  "description": "Measures average rise and fall time from 30% to 70%",
+  "description": "Measures average rise and fall time from 10% to 90%",
   "extensions": {
     "Rise/Fall Time": {
       "type": "AnalogMeasurement",
       "entryPoint": "AnalogMeasurement.RiseFallTime",
       "metrics": {
         "v_30p": {
-          "name": "Voltage 30%",
-          "notation": "V<sub>30%</sub>",
+          "name": "Voltage 10%",
+          "notation": "V<sub>10%</sub>",
           "units": "V"
         },
         "v_70p": {
-          "name": "Voltage 70%",
-          "notation": "V<sub>70%</sub>",
+          "name": "Voltage 90%",
+          "notation": "V<sub>90%</sub>",
           "units": "V"
         },
         "t_rise": {
