@@ -1,82 +1,85 @@
 import numpy as np
-
 from saleae.range_measurements import AnalogMeasurer
-
 
 class RiseFallTime(AnalogMeasurer):
     supported_measurements = ["v_10p", "v_90p", "t_rise", "t_fall"]
 
-    # Initialize your measurement extension here
-    # Each measurement object will only be used once, so feel free to do all per-measurement initialization here
     def __init__(self, requested_measurements):
         super().__init__(requested_measurements)
         self.samples = []
         self.sampling_period = None
 
-        if "v_10p" in self.supported_measurements:
-            self.measure_v_10p = True
-        if "v_90p" in self.supported_measurements:
-            self.measure_v_90p = True
-        if "t_rise" in self.supported_measurements:
-            self.measure_t_rise = True
-        if "t_fall" in self.supported_measurements:
-            self.measure_t_fall = True
+        self.measure_v_10p = "v_10p" in requested_measurements
+        self.measure_v_90p = "v_90p" in requested_measurements
+        self.measure_t_rise = "t_rise" in requested_measurements
+        self.measure_t_fall = "t_fall" in requested_measurements
 
-
-    # This method will be called one or more times per measurement with batches of data
-    # data has the following interface
-    #   * Iterate over to get Voltage values, one per sample
-    #   * `data.samples` is a numpy array of float32 voltages, one for each sample
-    #   * `data.sample_count` is the number of samples (same value as `len(data.samples)` but more efficient if you don't need a numpy array)
     def process_data(self, data):
         self.samples.append(data.samples)
-        if self.sampling_period is None:
-            self.sampling_period = ((data.end_time - data.start_time) / data.sample_count).__float__()
+        if self.sampling_period is None and data.sample_count > 0:
+            self.sampling_period = float((data.end_time - data.start_time) / data.sample_count)
 
-
-    # This method is called after all the relevant data has been passed to `process_data`
-    # It returns a dictionary of the request_measurements values
     def measure(self):
+        if not self.samples:
+            return {}
+
         data = np.concatenate(self.samples)
+        if len(data) < 2:
+            return {}
 
-        max = np.max(data)
+        v_min = float(np.min(data))
+        v_max = float(np.max(data))
+        v_pp = v_max - v_min
 
-        v_10p = max * 0.1
-        v_90p = max * 0.9
+        # Prevent calculations if signal is completely flat or noise-only (< 50mV)
+        if v_pp < 0.05:
+            return {}
 
-        t_rise = []
-        t_fall = []
-
-        if self.measure_t_rise or self.measure_t_fall:
-            i_10p = None
-            i_90p = None
-
-            v = data[0]
-            for i, n in enumerate(data[1:]):
-                if (v >= v_10p and n < v_10p) or (v <= v_10p and n > v_10p):
-                    i_10p = i
-                    if i_90p is not None:
-                        t_fall.append(i_10p - i_90p)
-                        i_10p = i_90p = None
-                if (v >= v_90p and n < v_90p) or (v <= v_90p and n > v_90p):
-                    i_90p = i
-                    if i_10p is not None:
-                        t_rise.append(i_90p - i_10p)
-                        i_10p = i_90p = None
-                v = n        
+        v_10p = v_min + (v_pp * 0.1)
+        v_90p = v_min + (v_pp * 0.9)
 
         values = {}
 
         if self.measure_v_10p:
             values["v_10p"] = v_10p
-
         if self.measure_v_90p:
             values["v_90p"] = v_90p
 
-        if self.measure_t_rise and len(t_rise):
-            values["t_rise"] = np.average(t_rise) * self.sampling_period
-        
-        if self.measure_t_fall and len(t_fall):
-            values["t_fall"] = np.average(t_fall) * self.sampling_period
+        # Find crossings using numpy vector operations
+        above_10 = data >= v_10p
+        above_90 = data >= v_90p
+
+        # Detect edge transitions (False -> True for rising, True -> False for falling)
+        cross_10_rise = np.where(~above_10[:-1] & above_10[1:])[0]
+        cross_90_rise = np.where(~above_90[:-1] & above_90[1:])[0]
+
+        cross_90_fall = np.where(above_90[:-1] & ~above_90[1:])[0]
+        cross_10_fall = np.where(above_10[:-1] & ~above_10[1:])[0]
+
+        # Calculate Rise Time
+        if self.measure_t_rise and len(cross_10_rise) > 0 and len(cross_90_rise) > 0:
+            t_rises = []
+            for idx_10 in cross_10_rise:
+                # Find the first 90% crossing that occurs AFTER this 10% crossing
+                valid_90 = cross_90_rise[cross_90_rise > idx_10]
+                if len(valid_90) > 0:
+                    idx_90 = valid_90[0]
+                    t_rises.append((idx_90 - idx_10) * self.sampling_period)
+            
+            if len(t_rises) > 0:
+                values["t_rise"] = float(np.mean(t_rises))
+
+        # Calculate Fall Time
+        if self.measure_t_fall and len(cross_90_fall) > 0 and len(cross_10_fall) > 0:
+            t_falls = []
+            for idx_90 in cross_90_fall:
+                # Find the first 10% crossing that occurs AFTER this 90% crossing
+                valid_10 = cross_10_fall[cross_10_fall > idx_90]
+                if len(valid_10) > 0:
+                    idx_10 = valid_10[0]
+                    t_falls.append((idx_10 - idx_90) * self.sampling_period)
+            
+            if len(t_falls) > 0:
+                values["t_fall"] = float(np.mean(t_falls))
 
         return values
